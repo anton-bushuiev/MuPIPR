@@ -9,8 +9,8 @@ import keras
 
 
 from keras.models import Sequential, Model
-from keras.layers import Dense, Activation, Dropout, Embedding, LSTM, Bidirectional 
-# Merge, 
+from keras.layers import Dense, Activation, Dropout, Embedding, LSTM, Bidirectional
+# Merge,
 from keras.layers import BatchNormalization, merge, add
 from keras.layers.core import Flatten, Reshape
 from keras.layers.merge import Concatenate, concatenate, subtract, multiply
@@ -29,7 +29,14 @@ from numpy import linalg as LA
 import scipy
 from sklearn.model_selection import KFold, ShuffleSplit
 from keras import backend as K
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+# Print available GPU devices
+from tensorflow.python.client import device_lib
+def get_available_gpus():
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']
+print('Available GPUs:', get_available_gpus())
 
 def pearson_r(y_true, y_pred):
     x = y_true
@@ -44,22 +51,22 @@ def pearson_r(y_true, y_pred):
     r = r_num / r_den
     return K.mean(r)
 
-id2seq_file = '/workspace/PPI-Binding/iSee-master/processed/skempi_v1.trainAB.mut4.seq.txt'
+# id2seq_file = '/workspace/PPI-Binding/iSee-master/processed/skempi_v1.trainAB.mut4.seq.txt'
 # id2seq_file = '/workspace/PPI-Binding/BindProfX/processed/seq.txt'
 # id2seq_file = '/workspace/PPI-Binding/iSee-master/processed/skempi_v1_v2.seq.txt'
 
 # ds_file, label_index, rst_file, use_emb, hiddem_dim
-ds_file = '/workspace/PPI-Binding/iSee-master/processed/4g_scores.txt'
-label_index = 4
-rst_file = 'results/temp.txt'
+# ds_file = '/workspace/PPI-Binding/iSee-master/processed/4g_scores.txt'
+# label_index = 4
+# rst_file = 'results/temp.txt'
 use_emb = 3
 sid1_index = 0
 sid2_index = 1
 sid3_index = 2
 sid4_index = 3
-model_dim = 0
-hidden_dim = 5
-n_epochs = 5 
+# model_dim = 0
+# hidden_dim = 5
+# n_epochs = 5
 
 if len(sys.argv) > 1:
     ds_file, id2seq_file, label_index, rst_file, hidden_dim, n_epochs, model_dim, max_data = sys.argv[1:]
@@ -87,7 +94,7 @@ raw_data = []
 raw_ids = []
 skip_head = False
 x = None
-count = 0    
+count = 0
 
 ## Serving contextualized embeddings of amino acids ================================
 
@@ -97,7 +104,7 @@ options_file='../../biLM/model/behm_'+model_dim+'skip_2l.ckpt/options.json'
 weight_file='../../biLM/model/behm_'+model_dim+'skip_2l.hdf5'
 token_embedding_file='../../biLM/model/vocab_embedding_'+model_dim+'skip_2l.hdf5'
 
-print("Using options_file", options_file)
+# print("Using options_file", options_file)
 # options_file='../model/behm_3_2l.ckpt/options.json'
 # weight_file='../model/behm_3_2l.hdf5'
 # token_embedding_file='../model/vocab_embedding_dim3.hdf5'
@@ -154,7 +161,12 @@ def get_session(gpu_fraction=0.25):
     '''Assume that you have 6GB of GPU memory and want to allocate ~2GB'''
 
     num_threads = os.environ.get('OMP_NUM_THREADS')
+    if num_threads is not None:
+        num_threads = int(num_threads)
+    print('num_threads:', num_threads)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction)
+    # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction,
+    #                             allow_growth = True)
 
     if num_threads:
         return tf.Session(config=tf.ConfigProto(
@@ -192,14 +204,14 @@ def build_model():
     l3=Conv1D(hidden_dim, 3)
     r3=Bidirectional(CuDNNGRU(hidden_dim, return_sequences=True))
     # l3_end=Conv1D(hidden_dim, 3)
-    
+
     l4=Conv1D(hidden_dim, 3)
     r4=Bidirectional(CuDNNGRU(hidden_dim, return_sequences=True))
     l5=Conv1D(hidden_dim, 3)
     r5=Bidirectional(CuDNNGRU(hidden_dim, return_sequences=True))
     l6=Conv1D(hidden_dim, 3)
     r6=Bidirectional(CuDNNGRU(hidden_dim, return_sequences=True))
-    
+
     l_end=Conv1D(hidden_dim, 3)
     D1=Dense(100, activation='linear')
     # D2=Dense(1, activation='sigmoid')
@@ -208,7 +220,7 @@ def build_model():
     D3=Dense(100, activation='linear')
     # D2=Dense(1, activation='sigmoid')
     D4=Dense(1, activation='linear')
-    
+
     s1=MaxPooling1D(2)(l1(seq_input1))
     s1=concatenate([r1(s1), s1])
     s1=MaxPooling1D(2)(l2(s1))
@@ -222,11 +234,11 @@ def build_model():
     # s1=concatenate([r5(s1), s1])
     # s1=MaxPooling1D(3)(l6(s1))
     # s1=concatenate([r6(s1), s1])
-    
+
     s1=l_end(s1)
 
     s1=GlobalAveragePooling1D()(s1)
-    
+
     s2=MaxPooling1D(2)(l1(seq_input2))
     s2=concatenate([r1(s2), s2])
     s2=MaxPooling1D(2)(l2(s2))
@@ -244,14 +256,14 @@ def build_model():
 
     # s2=l3_end(s2)
     s2=GlobalAveragePooling1D()(s2)
-    
+
     subtract_abs1 = keras.layers.Lambda(abs_diff, abs_diff_output_shape)
-    
+
     merge_text1 = multiply([s1, s2])
 
     # merge_text2 = merge([s1, s2], mode=lambda x: x[0] - x[1], output_shape=lambda x: x[0])
     merge_text2 = subtract_abs1([s1,s2])
-    
+
     merge_text_12 = concatenate([merge_text2, merge_text1])
     # merge_text_12 = multiply([s1, s2])
     # x12 = Dense(100, activation='linear')(merge_text_12)
@@ -261,8 +273,8 @@ def build_model():
     # main_output12 = Dense(1, activation='sigmoid')(x12)
     # main_output12 = Dense(1, activation='linear')(x12)
     main_output12 = D2(x12)
-    
-    
+
+
     s3=MaxPooling1D(2)(l1(seq_input3))
     s3=concatenate([r1(s3), s3])
     s3=MaxPooling1D(2)(l2(s3))
@@ -288,14 +300,14 @@ def build_model():
 
     s4=l_end(s4)
     s4=GlobalAveragePooling1D()(s4)
-    
+
     subtract_abs2 = keras.layers.Lambda(abs_diff, abs_diff_output_shape)
-    
+
     merge_text1 = multiply([s3, s4])
 
     # merge_text2 = merge([s1, s2], mode=lambda x: x[0] - x[1], output_shape=lambda x: x[0])
     merge_text2 = subtract_abs2([s3, s4])
-    
+
     merge_text_34 = concatenate([merge_text2, merge_text1])
 
     # merge_text_34 = multiply([s3, s4])
@@ -308,14 +320,14 @@ def build_model():
     main_output34 = D2(x34)
 
     merge_text_1234 = concatenate([merge_text_12, merge_text_34])
-    
+
     # main_output = main_output34 - main_output12
     # main_output = subtract([main_output34, main_output12])
     x1234 = D3(merge_text_1234)
     x1234 = keras.layers.LeakyReLU(alpha=0.3)(x1234)
 
     main_output = D4(x1234)
-    
+
     # merge_model = Model(inputs=[seq_input1, seq_input2, seq_input3, seq_input4], outputs=[main_output12, main_output34])
     merge_model = Model(inputs=[seq_input1, seq_input2, seq_input3, seq_input4], outputs=[main_output12, main_output34, main_output])
 
@@ -341,7 +353,7 @@ for line in tqdm(open(ds_file)):
         sid += 1
         seq_array.append(seqs[id2index[line[sid1_index]]])
     line[sid1_index] = id2_aid[line[sid1_index]]
-    
+
     if id2_aid.get(line[sid2_index]) is None:
         id2_aid[line[sid2_index]] = sid
         sid += 1
@@ -361,7 +373,7 @@ for line in tqdm(open(ds_file)):
     line[sid4_index] = id2_aid[line[sid4_index]]
 
     raw_data.append(line)
-    
+
     if limit_data:
         count += 1
         if count >= max_data:
@@ -432,18 +444,18 @@ for j in range(2):
         all_max = max_j
 
 # ddG is normalized differently
-for j in range(2):        
+for j in range(2):
     score_labels[:,j] = (score_labels[:,j] - all_min )/(all_max - all_min)
 
-score_labels[:,2] = (score_labels[:,2])/(all_max - all_min)    
+score_labels[:,2] = (score_labels[:,2])/(all_max - all_min)
 
-print("All max, min",all_min, all_max)    
+print("All max, min",all_min, all_max)
 
 batch_size1 = 32
 adam = Adam(lr=0.005, amsgrad=True, epsilon=1e-5)
 
 # kf = ShuffleSplit(n_splits=5)
-kf = KFold(n_splits=5, shuffle = True, random_state=13)
+kf = KFold(n_splits=5, shuffle=True, random_state=13)
 
 tries = 11
 cur = 0
@@ -482,10 +494,10 @@ for train, test in train_test:
     # new_seq_1 = np.concatenate((seq_index3[train],seq_index1[train]))
     # new_seq_2 = np.concatenate((seq_index4[train],seq_index2[train]))
     # new_labels = np.concatenate((score_labels[train,1], score_labels[train,0]))
-    
+
     # merge_model.fit([seq_tensor[new_seq_1], seq_tensor[new_seq_2]], new_labels, batch_size=batch_size1, epochs=n_epochs, verbose = 0)
     # merge_model.fit([seq_tensor[seq_index1[train]], seq_tensor[seq_index2[train]], seq_tensor[seq_index3[train]], seq_tensor[seq_index4[train]]], [score_labels[train,2]], batch_size=batch_size1, epochs=n_epochs, verbose = 0)
-    merge_model.fit([seq_tensor[seq_index1[train]], seq_tensor[seq_index2[train]], seq_tensor[seq_index3[train]], seq_tensor[seq_index4[train]]], [score_labels[train,0], score_labels[train,1], score_labels[train,2]], batch_size=batch_size1, epochs=n_epochs, verbose = 0)
+    merge_model.fit([seq_tensor[seq_index1[train]], seq_tensor[seq_index2[train]], seq_tensor[seq_index3[train]], seq_tensor[seq_index4[train]]], [score_labels[train,0], score_labels[train,1], score_labels[train,2]], batch_size=batch_size1, epochs=n_epochs, verbose=1)
 
     pred = merge_model.predict([seq_tensor[seq_index1[test]], seq_tensor[seq_index2[test]], seq_tensor[seq_index3[test]], seq_tensor[seq_index4[test]]])
 
@@ -500,10 +512,10 @@ for train, test in train_test:
     for i in range(len(score_labels[test,num_scores-1])):
         this_num_total += 1
         # ddG_label_i = score_labels[test,2][i]
-        # ddG_pred_i = ddG_pred[i] 
+        # ddG_pred_i = ddG_pred[i]
         ddG_label_i = (all_max - all_min)*score_labels[test,2][i]
         ddG_pred_i = (all_max - all_min)*ddG_pred[i]
-        
+
         diff = abs(ddG_label_i - ddG_pred_i)
         this_mae += diff
         this_mse += diff**2
@@ -520,7 +532,7 @@ for train, test in train_test:
 
     # fp2.write("id1\tid2\tid3\tid4\tdG0_predict\tdG0_label\tdG1_predict\tdG1_label\tddG_pred-scale\tddG_label-scale\n")
     for i in range(len(test)):
-        fp2.write(str(raw_ids[test[i]][sid1_index]) + '\t' + str(raw_ids[test[i]][sid2_index])  + '\t' + str(raw_ids[test[i]][sid3_index])  + '\t' + str(raw_ids[test[i]][sid4_index]) 
+        fp2.write(str(raw_ids[test[i]][sid1_index]) + '\t' + str(raw_ids[test[i]][sid2_index])  + '\t' + str(raw_ids[test[i]][sid3_index])  + '\t' + str(raw_ids[test[i]][sid4_index])
             + '\t' + str(scale_back(np.ndarray.flatten(dG_pred0)[i])) + '\t' + str(scale_back(score_labels[test[i], 0]))
             + '\t' + str(scale_back(np.ndarray.flatten(dG_pred1)[i])) + '\t' + str(scale_back(score_labels[test[i], 1]))
             + '\t' + str(np.ndarray.flatten((all_max - all_min)*ddG_pred)[i]) + '\t' + str((all_max - all_min)*score_labels[test[i], 2]) + '\n')
@@ -535,11 +547,10 @@ for train, test in train_test:
 mse = total_mse / num_total
 mae = total_mae / num_total
 total_cov /= len(train_test)
-print("Using options_file", options_file, hidden_dim, n_epochs)
+print("Using BiLM options_file", options_file, hidden_dim, n_epochs)
 print ("Average", mse[0], total_cov)
 
 with open(rst_file, 'w') as fp:
-    fp.write('mse=' + str(mse) + '\ncorr=' + str(total_cov))
-
+    fp.write(f'mse={mse}, ncorr={total_cov}\n')
 
 # '''

@@ -6,17 +6,16 @@ This is the repository for the NAR Genom. Bioinform. paper "Mutation effect esti
 MuPIPR can be run under Linux. The following packages are required: python 3.6, h5py, Tensorflow 1.7 (with GPU support), Keras 2.2.4 and bilm-tf.
 
 ## Installing
-If you don't have python 3.6, please download from [here.](https://www.python.org/downloads/)
-
-Then you can use ```pip install ``` to install the following packages:
-
-	h5py
-	Tensorflow 1.7 (with GPU support)
-	Keras 2.2.4
-
-Make sure tensorflow and h5py has been installed successfully before you install bilm-tf. To install bilm-tf, please download the package from [here] (https://github.com/allenai/bilm-tf) and run: `python setup.python`
-	
-
+Before proceeding make sure you have `conda` installed.
+Then, make installation script executable
+```
+chmod +x install.sh
+```
+and run
+```
+source install.sh
+```
+You may specify a path to `conda` executables directory as a first argument of `install.sh`. By default it is set to `~/miniconda3/bin/`. 
 ## Contents
 * **biLM:** contains the pre-trained language models for contextualized amino acid representations.
 * **data:** contains the datasets and processing scripts for the two tasks.

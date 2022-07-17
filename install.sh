@@ -3,13 +3,14 @@
 # Initialize path to conda.sh
 if [ $# -eq 0 ]
 then
-    conda_sh_path="${HOME}/miniconda3/etc/profile.d/conda.sh"
+    conda_bin="~/miniconda3/bin/"
 else
-    conda_sh_path=$1
+    conda_bin="$1"
 fi
 
 # Create conda environment
-. conda_sh_path
+export PATH="${PATH}:${conda_bin}"
+source activate
 conda create -n mupipr python=3.6 -y
 conda activate mupipr
 
@@ -21,6 +22,7 @@ conda install h5py -y
 conda install keras-gpu==2.2.4 -y  # Just a wrapper for tf.keras
 
 # Install BiLM
+git clone https://github.com/allenai/bilm-tf.git
 cd bilm-tf/
 python setup.py install
 cd ..
